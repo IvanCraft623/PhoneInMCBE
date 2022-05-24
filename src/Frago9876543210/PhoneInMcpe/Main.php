@@ -12,31 +12,33 @@ namespace Frago9876543210\PhoneInMcpe;
 
 use pocketmine\entity\Entity;
 use pocketmine\entity\Skin;
+use pocketmine\entity\Location;
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerChatEvent;
 use pocketmine\event\player\PlayerInteractEvent;
 use pocketmine\event\server\DataPacketReceiveEvent;
-use pocketmine\item\Item;
+use pocketmine\item\VanillaItems;
 use pocketmine\math\Vector3;
 use pocketmine\network\mcpe\protocol\AddPlayerPacket;
 use pocketmine\network\mcpe\protocol\InteractPacket;
 use pocketmine\network\mcpe\protocol\PlayerSkinPacket;
 use pocketmine\network\mcpe\protocol\RemoveEntityPacket;
 use pocketmine\plugin\PluginBase;
-use pocketmine\utils\UUID;
+use Ramsey\Uuid\Uuid;
 
 class Main extends PluginBase implements Listener{
 
-	/** @var string $model */
-	public $model = '{"geometry.flat":{"bones":[{"name":"body","pivot":[0,0,0],"cubes":[{"origin":[0,0,0],"size":[64,64,1],"uv":[0,0]}]}]}}';
-	/** @var int $width */
-	public $width = 7; //1920 / 64 = 30; 30 / 2 = 15; 15 / 2 = 7.5; 7
-	/** @var int $height */
-	public $height = 4; //1080 / 64 = 16.875; 16 / 2 = 8; 8 / 2 = 4
+
+	public string $model = '{"geometry.flat":{"bones":[{"name":"body","pivot":[0,0,0],"cubes":[{"origin":[0,0,0],"size":[64,64,1],"uv":[0,0]}]}]}}';
+
+	public int $width = 7; //1920 / 64 = 30; 30 / 2 = 15; 15 / 2 = 7.5; 7
+
+	public int $height = 4; //1080 / 64 = 16.875; 16 / 2 = 8; 8 / 2 = 4
+
 	/** @var  EntityInfo[] $entities */
-	public $entities = [];
+	public array $entities = [];
 	/** @var EntityInfo[] $lastEntity */
-	public $lastEntity = [];
+	public array $lastEntity = [];
 
 	public function onEnable() : void{
 		if(!extension_loaded("gd")){
@@ -45,11 +47,8 @@ class Main extends PluginBase implements Listener{
 			return;
 		}
 
-		if(!is_int($this->width) || !is_int($this->height)){
-			$this->getLogger()->error("[-] You incorrectly calculated the size!");
-			$this->getServer()->getPluginManager()->disablePlugin($this);
-			return;
-		}
+		$this->width = (int) $this->getConfig()->get("width", $this->width);
+		$this->width = (int) $this->getConfig()->get("height", $this->height);
 
 		$path = $this->getDataFolder();
 		if(file_exists($path . "tmp")){
@@ -75,53 +74,37 @@ class Main extends PluginBase implements Listener{
 
 		if($word === "start"){
 			unset($this->entities);
-			$e->setCancelled();
-			$coordinates = $p->asVector3();
-			$pitch = deg2rad($p->pitch);
-			$yaw = deg2rad($p->yaw);
+			$e->cancel();
+			$location = $p->getLocation();
+			$coordinates = $location->asVector3();
+			$pitch = deg2rad($location->pitch);
+			$yaw = deg2rad($location->yaw);
 			$direction = new Vector3(-sin($yaw) * cos($pitch), -sin($pitch), cos($yaw) * cos($pitch));
 			for($x = 1; $x < $this->width + 1; $x++){
 				for($y = 1; $y < $this->height + 1; $y++){
-					//NOTE: you can change size
-					//0.125 * 4 = 0.5
-					$pk = new AddPlayerPacket;
-					$pk->uuid = $uuid = UUID::fromRandom();
-					$pk->username = "";
-					$pk->entityRuntimeId = $eid = Entity::$entityCount++;
-					$pk->position = new Vector3($coordinates->x + $direction->x + ($x * 0.5), $coordinates->y + ($y * 0.5), $coordinates->z + $direction->z);
-					$pk->motion = new Vector3;
-					$pk->yaw = 0.0;
-					$pk->pitch = 0.0;
-					$pk->item = Item::get(Item::AIR);
-					$pk->metadata = [
-						Entity::DATA_SCALE => [Entity::DATA_TYPE_FLOAT, 0.125],
-						Entity::DATA_BOUNDING_BOX_WIDTH => [Entity::DATA_TYPE_FLOAT, 0],
-						Entity::DATA_BOUNDING_BOX_HEIGHT => [Entity::DATA_TYPE_FLOAT, 0]
-					];
-					$p->getServer()->broadcastPacket($this->getServer()->getOnlinePlayers(), $pk);
-
-					$skinPk = new PlayerSkinPacket;
-					$skinPk->uuid = $uuid;
-					$skinPk->skin = new Skin("", str_repeat('Z', 16384), "", "geometry.flat", $this->model);
-					$p->getServer()->broadcastPacket($this->getServer()->getOnlinePlayers(), $skinPk);
 					//todo: check this
-					$this->entities[] = new EntityInfo($eid, $uuid, $x * 4 * 64, $y * 4 * 64);
+					$entity = new EntityInfo(
+						new Location($coordinates->x + $direction->x + ($x * 0.5), $coordinates->y + ($y * 0.5), $coordinates->z + $direction->z, $location->getWorld(), 0.0, 0.0),
+						new Skin("Skin", str_repeat('Z', 16384), "", "geometry.flat", $this->model),
+						$x * 4 * 64,
+						$y * 4 * 64
+					);
+					$entity->spawnToAll();
+					$this->entities[] = $entity;
 				}
 			}
 		}elseif($word === "touch"){
-			$e->setCancelled();
+			$e->cancel();
 			if(isset($args[0]) && isset($args[1])){
 				$this->touch(intval($args[0]), intval($args[1]));
 			}
 		}elseif($word === "shell"){
-			$e->setCancelled();
+			$e->cancel();
 			shell_exec("adb shell " . implode(" ", $args));
 		}elseif($word === "stop"){
-			$e->setCancelled();
+			$e->cancel();
 			foreach($this->entities as $entityInfo){
-				$pk = new RemoveEntityPacket;
-				$pk->entityUniqueId = $entityInfo->getEntityRuntimeId();
-				$p->dataPacket($pk);
+				$entityInfo->flagForDespawn();
 			}
 			$this->entities = [];
 		}
@@ -132,20 +115,20 @@ class Main extends PluginBase implements Listener{
 		//InteractPacket better
 		$packet = $e->getPacket();
 		if($packet instanceof InteractPacket){
-			$eid = $packet->target;
+			$eid = $packet->targetActorRuntimeId;
 			foreach($this->entities as $entityInfo){
-				if($entityInfo->getEntityRuntimeId() == $eid){
-					$this->lastEntity[$e->getPlayer()->getName()] = $entityInfo;
+				if($entityInfo->getId() == $eid){
+					$this->lastEntity[$e->getOrigin()->getPlayer()->getId()] = $entityInfo;
 				}
 			}
 		}
 	}
 
 	public function onPress(PlayerInteractEvent $e){
-		if($e->getAction() == $e::RIGHT_CLICK_AIR && $e->getItem()->getId() == Item::STICK){
-			$name = $e->getPlayer()->getName();
-			if(isset($this->lastEntity[$name])){
-				$this->touch($this->lastEntity[$name]->getHeight(), $this->lastEntity[$name]->getWidth());
+		if($e->getAction() == $e::RIGHT_CLICK_BLOCK && $e->getItem()->equals(VanillaItems::STICK())){
+			$id = $e->getPlayer()->getId();
+			if(isset($this->lastEntity[$id])){
+				$this->touch($this->lastEntity[$id]->getHeight(), $this->lastEntity[$id]->getWidth());
 			}
 		}
 	}

@@ -10,31 +10,34 @@ declare(strict_types=1);
 namespace Frago9876543210\PhoneInMcpe;
 
 
-use pocketmine\utils\UUID;
+use pocketmine\entity\EntitySizeInfo;
+use pocketmine\entity\Human;
+use pocketmine\entity\Skin;
+use pocketmine\entity\Location;
+use pocketmine\event\entity\EntityDamageEvent;
 
-class EntityInfo{
-	/** @var  int */
-	private $entityRuntimeId;
-	/** @var  UUID */
-	private $UUID;
-	/** @var  int */
-	private $width;
-	/** @var  int */
-	private $height;
+class EntityInfo extends Human{
 
-	public function __construct(int $entityRuntimeId, UUID $UUID, int $width, int $height){
-		$this->entityRuntimeId = $entityRuntimeId;
-		$this->UUID = $UUID;
+	protected $scale = 0.125;
+
+	private int $width;
+
+	private int $height;
+
+	public function __construct(Location $location, Skin $skin, int $width, int $height){
 		$this->width = $width;
 		$this->height = $height;
+		parent::__construct($location, $skin);
 	}
 
-	public function getEntityRuntimeId() : int{
-		return $this->entityRuntimeId;
+	protected function getInitialSizeInfo() : EntitySizeInfo{
+		//NOTE: you can change size
+		//0.125 * 4 = 0.5
+		return new EntitySizeInfo(0.0, 0.125, 0.0);
 	}
 
-	public function getUUID() : UUID{
-		return $this->UUID;
+	public function canSaveWithChunk() : bool{
+		return false;
 	}
 
 	public function getWidth() : int{
@@ -44,4 +47,8 @@ class EntityInfo{
 	public function getHeight() : int{
 		return $this->height;
 	}
+
+	public function attack(EntityDamageEvent $event): void {}
+
+	protected function move(float $dx, float $dy, float $dz): void {}
 }

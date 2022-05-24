@@ -23,7 +23,7 @@ class UpdateImageTask extends Task{
 		$this->plugin = $plugin;
 	}
 
-	public function onRun(int $currentTick) : void{
+	public function onRun() : void{
 		if(!empty($this->plugin->entities)){
 			$path = $this->getServer()->getDataPath();
 			shell_exec('adb shell screencap -p /sdcard/s.png && adb pull /sdcard/s.png ' . $path . 's.png');
@@ -31,10 +31,8 @@ class UpdateImageTask extends Task{
 			$this->plugin->cropRecursive($path . 's1.png', $this->plugin->getDataFolder() . DIRECTORY_SEPARATOR . "tmp/p");
 			$index = 0;
 			foreach($this->plugin->entities as $entityInfo){
-				$pk = new PlayerSkinPacket;
-				$pk->uuid = $entityInfo->getUUID();
-				$pk->skin = new Skin("", $this->plugin->getTextureFromFile($this->plugin->getDataFolder() . DIRECTORY_SEPARATOR . 'tmp/p' . $index++ . '.png'), "", "geometry.flat", $this->plugin->model);
-				$this->getServer()->broadcastPacket($this->getServer()->getOnlinePlayers(), $pk);
+				$entityInfo->setSkin(new Skin("Skin", $this->plugin->getTextureFromFile($this->plugin->getDataFolder() . DIRECTORY_SEPARATOR . 'tmp/p' . $index++ . '.png'), "", "geometry.flat", $this->plugin->model));
+				$entityInfo->sendSkin();
 			}
 		}
 	}
